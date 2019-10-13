@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+	<meta charset="UTF-8">
+	<title>直播</title>
+	<style>
+	.video{
+		margin:100px auto;
+		margin-bottom: 40px;
+		display: block;
+		box-shadow:0 0 15px 5px #ccc;
+	}
+	button{
+		width:120px;
+		height:50px;
+		text-align:center;
+		background:#f96;
+		border:none;
+		outline:none;
+		border-radius:4px;
+		color:#fff;
+		font-size:18px;
+		margin:10px auto;
+		display:block;
+	}
+	</style>
+	<script src='/public/js/socket.io.js'></script>
+	<script src='/public/js/jq.js'></script>
+</head>
+<body>
+	<video id="replay" width="1200px" height="600px" autoplay style="display:none"></video>
+	<canvas id="play" class="video" width="1200px" height="600px"></canvas>
+	<video id="video" class="video" wdith="1200px" height="600px" style="display: none"></video>
+	
+	<button id="onPlay" onclick="OnPlay()">开始</button>
+	<!-- <button id="onStop">停止</button> -->
+</body>
+<script>
+window.onload = function(){
+	window.socket = io.connect("ws://127.0.0.1:8822");
+	socket.on('Playing',function(data){
+		console.log(data);
+		sourceBuffer.appendBuffer(data);
+	})
+	window.render = play.getContext('2d');
+	render.translate(render.canvas.width/2,render.canvas.height/2);
+	render.scale(-1,1);
+	var mimeType =  'video/webm;codecs=vp9';
+	if (!MediaSource.isTypeSupported(mimeType)) {
+        console.log(mimeType + ' is not Supported');
+        mimeType =  'video/webm;codecs=vp8';
+        if (!MediaSource.isTypeSupported(mimeType)) {
+            console.log(mimeType + ' is not Supported');
+            mimeType =  'video/webm';
+        }
+    }
+	window.mediaSource = new MediaSource();
+	replay.src = URL.createObjectURL(mediaSource);
+	mediaSource.addEventListener('sourceopen', sourceOpen)
+
+	// console.log(mediaSource);
+	function sourceOpen (e) {
+		window.sourceBuffer = mediaSource.addSourceBuffer(mimeType);
+		// sourceBuffer.addEventListener('updateend', function () {
+  //           console.log(mediaSource);
+  //           mediaSource.endOfStream();
+  //           replay.play();
+  //       });
+	}
+	
+	
+}
+function OnPlay(){
+	socket.emit('onPlay','');
+	let constraints = {
+        video: {width: 1200, height: 600},
+        audio: false
+    };
+    let promise = navigator.mediaDevices.getUserMedia(constraints);
+    promise.then(function (MediaStream) {
+    	var mimeType =  'video/webm;codecs=vp9';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.log(mimeType + ' is not Supported');
+            mimeType =  'video/webm;codecs=vp8';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                console.log(mimeType + ' is not Supported');
+                mimeType =  'video/webm';
+            }
+        }
+    	window.mediaRecorder = new MediaRecorder(MediaStream,{mimeType : mimeType});
+    	mediaRecorder.start(1000);
+    	// setInterval(function(){
+    	// 	// mediaRecorder.stop();
+    	// 	// mediaRecorder.start();
+    	// 	// mediaRecorder.requestData();
+    	// },1000);
+
+    	window.iii = 0
+		mediaRecorder.ondataavailable = function(e) {
+			// console.log(e);
+			e.data.arrayBuffer().then(buffer => {
+			// 	// console.log(buffer);
+				socket.emit('Playing',buffer);
+				// sourceBuffer.appendBuffer(buffer);
+				// iii ++;
+				// if(iii > 1){
+					// sourceBuffer.appendBuffer(buffer);
+					// socket.emit('Playing',buffer);
+				// }
+			})
+
+			// var blob = e.data;
+			// var file = new File([blob], 'msr-' + (new Date).toISOString().replace(/:|\./g, '-') + '.mp4', {
+			// 	type: 'video/webm; codecs=\"opus,vp8\"'
+			// });
+			// var formData = new FormData();
+			// formData.append('file', file);
+			// $.ajax({
+			// 	url :  "http://localhost:8282/upload",
+			// 	type : "post",
+			// 	cache : false,
+			// 	data: formData,
+			// 	dataType : "json",
+			// 	processData: false,
+			// 	contentType: false,
+			// 	error : function() {
+			// 		alert("暂时无法操作，请刷新后再试！");
+			// 	},
+			// 	success : function(result) {
+			// 		console.log(result);
+			// 	}
+			// });
+
+		}
+
+        video.srcObject = MediaStream;
+        video.play();
+        console.log({video});
+    }).catch(function (PermissionDeniedError) {
+        console.log(PermissionDeniedError);
+    });
+	setInterval(function() {
+    	render.drawImage(video,-video.videoWidth/2,-video.videoHeight/2);
+    	render.save();
+    	render.translate(-video.videoWidth/2,-video.videoHeight/2);
+    	render.scale(0.3,0.3);
+    	render.drawImage(replay,0,0);
+    	render.restore();
+    },20);
+}
+</script>
+</html>

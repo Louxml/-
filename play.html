@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>直播</title>
+</head>
+<body>
+<video id="recorded"></video>
+<video id="vid" autoplay muted></video>
+<button onclick="onPlay()">开始</button>
+<script>
+function onPlay(){
+    var constraints = {
+        audio: false, 
+        video: true  //设置为false则只获取音频
+    };
+    navigator.mediaDevices.getUserMedia(constraints)
+        .then(handleSuccess)
+        .catch(handleError);
+    function handleSuccess(stream) {
+        //stream即为返回成功的结果，设置为全局便于的后续上传操作
+        window.stream = stream;
+
+        //显示在页面上
+        var recordedVideo = document.querySelector('video#recorded');
+        recordedVideo.srcObject = stream;
+        recordedVideo.play();
+        recordedVideo.onloadedmetadata = function(e) {
+
+        };
+
+        var mimeType =  'video/webm;codecs=vp9';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+            console.log(mimeType + ' is not Supported');
+            mimeType =  'video/webm;codecs=vp8';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                console.log(mimeType + ' is not Supported');
+                mimeType =  'video/webm';
+            }
+        }
+        try {
+            var options = {mimeType:mimeType};
+            mediaRecorder = new MediaRecorder(window.stream, options);
+            mediaRecorder.start(100);
+            // setInterval(function(){
+            //     mediaRecorder.stop();
+            //     mediaRecorder.start();
+            // },1000);
+            window.iii = 0;
+            mediaRecorder.ondataavailable =  function (event) {
+                if (event.data && event.data.size > 0) {
+                    console.log('正在发送数据...');
+                    //recordedBlobs.push(event.data);
+
+                    //通过WebSocket发送到后台
+                    // socket.send( event.data );//实际数据，音视频同帧
+                    // socket.send( event.timeStamp );
+                    // console.log(event.data,event.timeStamp,sourceBuffer);
+                    
+                    if(iii == 0){
+                        event.data.arrayBuffer().then((buffer)=>{
+                            sourceBuffer.appendBuffer(buffer);
+                        })
+                    }else iii--;
+                    
+                    
+                    
+                }
+            }
+
+        } catch (e) {
+            console.error('Exception while creating MediaRecorder: ' + e);
+            return;
+        }
+        if (!MediaSource.isTypeSupported(mimeType)) {
+            console.log(mimeType + ' is not Supported');
+            mimeType =  'video/webm;codecs=vp8';
+            if (!MediaSource.isTypeSupported(mimeType)) {
+                console.log(mimeType + ' is not Supported');
+                mimeType =  'video/webm';
+            }
+        }
+        var vidElement = document.getElementById('vid');
+        var mediaSource = new MediaSource();
+        vidElement.src = URL.createObjectURL(mediaSource);
+        mediaSource.addEventListener('sourceopen', sourceOpen);
+        var sourceBuffer;
+        //当加载完成后
+        function sourceOpen(e) {
+            console.log('sourceOpen');
+            //节省内存，可不用这句
+            // URL.revokeObjectURL(vidElement.src); 
+            var mime = mimeType;
+            var mediaSource = e.target;
+
+            //添加解码格式
+            sourceBuffer = mediaSource.addSourceBuffer(mime);
+            // sourceBuffer.addEventListener('updateend', function () {
+            //     // console.log(mediaSource);
+            //     // mediaSource.endOfStream();
+            //     // replay.play();
+            // });
+        }
+    }
+
+    function handleError(error) {
+        console.log('navigator.getUserMedia error: ', error);
+        // alert('navigator.getUserMedia error: ', error);
+    }
+}
+</script>
+</body>
+</html>
